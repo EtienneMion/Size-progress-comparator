@@ -84,6 +84,7 @@ const SAMPLE_DATA = [
 
 // ─── Persistence (localStorage) ───────────────────────────────────────────────
 const STORAGE_KEY = 'growth-comparator:people';
+const PREFS_KEY = 'growth-comparator:prefs';
 
 // Charge les personnes depuis le localStorage ; retombe sur l'exemple si rien
 // n'est stocké ou si la donnée est illisible. Une liste vide stockée est
@@ -97,6 +98,23 @@ const loadPeople = () => {
     return Array.isArray(parsed) ? parsed : SAMPLE_DATA;
   } catch {
     return SAMPLE_DATA;
+  }
+};
+
+// Préférences d'affichage (toggle des points, intervalle d'âges). `ageRange`
+// vaut `null` quand aucun filtre n'est actif (on suit les bornes des données).
+const DEFAULT_PREFS = { showPoints: true, ageRange: null };
+
+const loadPrefs = () => {
+  if (typeof localStorage === 'undefined') return DEFAULT_PREFS;
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw === null) return DEFAULT_PREFS;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return DEFAULT_PREFS;
+    return { ...DEFAULT_PREFS, ...parsed };
+  } catch {
+    return DEFAULT_PREFS;
   }
 };
 
@@ -641,7 +659,8 @@ export default function App() {
   const [people, setPeople] = useState(loadPeople);
   const [progress, setProgress] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [showPoints, setShowPoints] = useState(true);
+  const initialPrefs = useMemo(() => loadPrefs(), []);
+  const [showPoints, setShowPoints] = useState(initialPrefs.showPoints);
 
   // Persiste les données saisies pour les retrouver au rechargement.
   useEffect(() => {
@@ -725,8 +744,17 @@ export default function App() {
   }, [people]);
 
   // `null` = aucun filtre actif → on suit les bornes des données.
-  const [ageRange, setAgeRange] = useState(null);
+  const [ageRange, setAgeRange] = useState(initialPrefs.ageRange);
   const effectiveAgeRange = ageRange ?? ageBounds;
+
+  // Persiste les préférences d'affichage (toggle des points, intervalle d'âges).
+  useEffect(() => {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ showPoints, ageRange }));
+    } catch {
+      // Stockage indisponible : on ignore silencieusement.
+    }
+  }, [showPoints, ageRange]);
   const ageFilterActive =
     ageRange !== null &&
     (ageRange.min > ageBounds.min || ageRange.max < ageBounds.max);

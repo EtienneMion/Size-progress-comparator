@@ -112,5 +112,27 @@ describe('App', () => {
         expect(screen.getAllByText(name).length).toBeGreaterThan(0);
       }
     });
+
+    it('restores the "show points" preference across reloads', () => {
+      const { unmount } = render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      fireEvent.click(screen.getByLabelText('Afficher les points'));
+      unmount();
+      render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      expect(screen.getByLabelText('Afficher les points')).toHaveAttribute(
+        'aria-checked', 'false'
+      );
+    });
+
+    it('restores the age interval preference across reloads', () => {
+      const { unmount } = render(<App />);
+      fireEvent.change(screen.getByLabelText('Âge minimum'), { target: { value: '7' } });
+      unmount();
+      render(<App />);
+      expect(screen.getByLabelText('Âge minimum')).toHaveValue(7);
+      // A narrowed range was restored, so the reset affordance is present.
+      expect(screen.getByText(/Tout afficher/i)).toBeInTheDocument();
+    });
   });
 });
