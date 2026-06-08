@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
-import { Play, Pause, RotateCcw, Plus, X, UserPlus, ChevronDown } from 'lucide-react';
+import { Play, Pause, RotateCcw, Plus, X, UserPlus, ChevronDown, SlidersHorizontal } from 'lucide-react';
 
 // ─── Design tokens ──────────────────────────────────────────────────────────
 const PALETTE = {
@@ -83,7 +83,7 @@ const SAMPLE_DATA = [
 ];
 
 // ─── Chart ──────────────────────────────────────────────────────────────────
-function GrowthChart({ people, mode, progress, title, subtitle }) {
+function GrowthChart({ people, mode, progress, title, subtitle, ageRange }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
   const [width, setWidth] = useState(640);
@@ -115,23 +115,23 @@ function GrowthChart({ people, mode, progress, title, subtitle }) {
           xAge: yearsBetween(p.birthDate, m.date),
           y: m.height,
         }))
+        .filter((pt) => pt.xAge >= ageRange.min && pt.xAge <= ageRange.max)
         .sort((a, b) => a.xRaw - b.xRaw),
     }));
-  }, [people]);
+  }, [people, ageRange]);
 
   const [xDomain, yDomain] = useMemo(() => {
     const hasPoints = personData.some((p) => p.points.length > 0);
     if (!hasPoints) {
       return mode === 'age'
-        ? [[0, 20], [40, 200]]
+        ? [[ageRange.min, ageRange.max], [40, 200]]
         : [[new Date('2000-01-01'), new Date()], [40, 200]];
     }
 
     let xMin, xMax;
     if (mode === 'age') {
-      xMin = 0;
-      xMax = Math.max(1, ...personData.flatMap((p) => p.points.map((pt) => pt.xAge)));
-      xMax = Math.ceil(xMax * 1.05);
+      xMin = ageRange.min;
+      xMax = ageRange.max;
     } else {
       const allDates = personData.flatMap((p) => p.points.map((pt) => pt.xRaw));
       xMin = d3.min(allDates);
@@ -146,7 +146,7 @@ function GrowthChart({ people, mode, progress, title, subtitle }) {
     const yMax = Math.ceil(d3.max(allH) / 10) * 10 + 5;
 
     return [[xMin, xMax], [yMin, yMax]];
-  }, [personData, mode]);
+  }, [personData, mode, ageRange]);
 
   const xScale = useMemo(() => {
     if (mode === 'age') return d3.scaleLinear().domain(xDomain).range([0, iw]);
@@ -625,6 +625,35 @@ export default function App() {
     };
   }, [people]);
 
+  // Bornes d'âge couvertes par les données (pour le filtre d'intervalle d'âges).
+  const ageBounds = useMemo(() => {
+    let max = 0;
+    people.forEach((p) =>
+      p.measurements.forEach((m) => {
+        max = Math.max(max, yearsBetween(p.birthDate, m.date));
+      })
+    );
+    return { min: 0, max: Math.max(1, Math.ceil(max)) };
+  }, [people]);
+
+  // `null` = aucun filtre actif → on suit les bornes des données.
+  const [ageRange, setAgeRange] = useState(null);
+  const effectiveAgeRange = ageRange ?? ageBounds;
+  const ageFilterActive =
+    ageRange !== null &&
+    (ageRange.min > ageBounds.min || ageRange.max < ageBounds.max);
+
+  const handleAgeMinChange = (value) => {
+    const v = parseFloat(value);
+    const min = isNaN(v) ? ageBounds.min : Math.max(0, Math.min(v, effectiveAgeRange.max));
+    setAgeRange({ min, max: effectiveAgeRange.max });
+  };
+  const handleAgeMaxChange = (value) => {
+    const v = parseFloat(value);
+    const max = isNaN(v) ? ageBounds.max : Math.max(effectiveAgeRange.min, v);
+    setAgeRange({ min: effectiveAgeRange.min, max });
+  };
+
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
@@ -723,6 +752,54 @@ export default function App() {
       cursor: pointer; transition: all 0.15s ease; flex-shrink: 0;
     }
     .reset-btn:hover { color: ${PALETTE.ink}; border-color: ${PALETTE.borderDashed}; }
+
+    .age-filter {
+      display: flex; align-items: center; gap: 10px;
+      flex-wrap: wrap;
+      padding: 10px 14px;
+      background: ${PALETTE.surface};
+      border: 1px solid ${PALETTE.border};
+      border-radius: 14px;
+      margin: 0 0 24px;
+      box-shadow: 0 1px 0 rgba(28,22,17,0.02);
+    }
+
+    .age-filter-icon { color: ${PALETTE.muted}; flex-shrink: 0; }
+
+    .age-filter-label {
+      font-size: 12px; font-weight: 600; color: ${PALETTE.ink};
+      margin-right: auto;
+    }
+
+    .age-filter-inputs {
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .age-filter-prefix, .age-filter-suffix {
+      font-size: 12px; color: ${PALETTE.muted};
+    }
+
+    .age-input {
+      width: 58px; padding: 7px 8px;
+      border: 1px solid ${PALETTE.border};
+      border-radius: 8px; background: ${PALETTE.surface};
+      font-family: 'Inter', sans-serif;
+      font-size: 12px; color: ${PALETTE.ink};
+      outline: none; transition: border-color 0.15s ease;
+      font-variant-numeric: tabular-nums;
+    }
+    .age-input:focus { border-color: ${PALETTE.ink}; }
+
+    .age-filter-reset {
+      padding: 6px 12px;
+      border: 1px solid ${PALETTE.border};
+      background: transparent; color: ${PALETTE.muted};
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .age-filter-reset:hover { color: ${PALETTE.ink}; border-color: ${PALETTE.borderDashed}; }
 
     .charts-grid {
       display: grid; gap: 16px;
@@ -995,11 +1072,44 @@ export default function App() {
             </button>
           </div>
 
+          <div className="age-filter">
+            <SlidersHorizontal size={15} className="age-filter-icon" />
+            <span className="age-filter-label">Intervalle d'âges</span>
+            <div className="age-filter-inputs">
+              <span className="age-filter-prefix">De</span>
+              <input
+                type="number" min={0} step={1}
+                value={effectiveAgeRange.min}
+                onChange={(e) => handleAgeMinChange(e.target.value)}
+                className="age-input"
+                aria-label="Âge minimum"
+              />
+              <span className="age-filter-prefix">à</span>
+              <input
+                type="number" min={0} step={1}
+                value={effectiveAgeRange.max}
+                onChange={(e) => handleAgeMaxChange(e.target.value)}
+                className="age-input"
+                aria-label="Âge maximum"
+              />
+              <span className="age-filter-suffix">ans</span>
+            </div>
+            {ageFilterActive && (
+              <button
+                className="age-filter-reset"
+                onClick={() => setAgeRange(null)}
+              >
+                Tout afficher
+              </button>
+            )}
+          </div>
+
           <div className="charts-grid">
             <GrowthChart
               people={people}
               mode="time"
               progress={progress}
+              ageRange={effectiveAgeRange}
               title={<><em>Au fil</em> des années</>}
               subtitle="Tout le monde sur la même frise du temps"
             />
@@ -1007,6 +1117,7 @@ export default function App() {
               people={people}
               mode="age"
               progress={progress}
+              ageRange={effectiveAgeRange}
               title={<><em>Au même</em> âge</>}
               subtitle="Et si vous aviez tous le même âge ?"
             />
