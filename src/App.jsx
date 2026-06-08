@@ -19,6 +19,47 @@ const PERSON_COLORS = [
   '#0284c7', '#7c3aed', '#0d9488', '#64748b',
 ];
 
+// ─── Reference growth curves (carnet de santé FR) ─────────────────────────────
+// Taille médiane (50e percentile) par âge, valeurs approximatives inspirées des
+// courbes de croissance du carnet de santé français (filles / garçons), de la
+// naissance à 18 ans. Sert de calque indicatif sur le graphique « au même âge ».
+const REFERENCE_CURVES = {
+  filles: {
+    label: 'Réf. filles',
+    points: [
+      { age: 0, height: 49.5 }, { age: 0.0833, height: 54 },
+      { age: 0.25, height: 60 }, { age: 0.5, height: 66 },
+      { age: 0.75, height: 70.5 }, { age: 1, height: 74 },
+      { age: 1.5, height: 81 }, { age: 2, height: 86.5 },
+      { age: 3, height: 95 }, { age: 4, height: 102.5 },
+      { age: 5, height: 109 }, { age: 6, height: 115.5 },
+      { age: 7, height: 121.5 }, { age: 8, height: 127.5 },
+      { age: 9, height: 133 }, { age: 10, height: 138.5 },
+      { age: 11, height: 144 }, { age: 12, height: 151 },
+      { age: 13, height: 157 }, { age: 14, height: 160.5 },
+      { age: 15, height: 162 }, { age: 16, height: 163 },
+      { age: 17, height: 163.5 }, { age: 18, height: 163.5 },
+    ],
+  },
+  garcons: {
+    label: 'Réf. garçons',
+    points: [
+      { age: 0, height: 49.9 }, { age: 0.0833, height: 54.7 },
+      { age: 0.25, height: 61 }, { age: 0.5, height: 67.5 },
+      { age: 0.75, height: 72 }, { age: 1, height: 76 },
+      { age: 1.5, height: 82.5 }, { age: 2, height: 87.5 },
+      { age: 3, height: 96 }, { age: 4, height: 103.5 },
+      { age: 5, height: 110 }, { age: 6, height: 116 },
+      { age: 7, height: 122 }, { age: 8, height: 128 },
+      { age: 9, height: 133.5 }, { age: 10, height: 138.5 },
+      { age: 11, height: 143.5 }, { age: 12, height: 149 },
+      { age: 13, height: 156 }, { age: 14, height: 163.5 },
+      { age: 15, height: 169.5 }, { age: 16, height: 173 },
+      { age: 17, height: 175 }, { age: 18, height: 176 },
+    ],
+  },
+};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const yearsBetween = (d1, d2) =>
   (new Date(d2) - new Date(d1)) / (365.25 * 86400 * 1000);
@@ -111,7 +152,7 @@ const loadPeople = () => {
 
 // Préférences d'affichage (toggle des points, intervalle d'âges). `ageRange`
 // vaut `null` quand aucun filtre n'est actif (on suit les bornes des données).
-const DEFAULT_PREFS = { showPoints: true, ageRange: null };
+const DEFAULT_PREFS = { showPoints: true, ageRange: null, reference: 'none' };
 
 const loadPrefs = () => {
   if (typeof localStorage === 'undefined') return DEFAULT_PREFS;
@@ -149,7 +190,7 @@ const sanitizePeople = (arr) => {
 };
 
 // ─── Chart ──────────────────────────────────────────────────────────────────
-function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPoints = true }) {
+function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPoints = true, referencePoints = null, referenceLabel = '' }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
   const [width, setWidth] = useState(640);
@@ -186,8 +227,17 @@ function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPo
     }));
   }, [people, ageRange]);
 
+  // Points de la courbe de référence visibles dans la fenêtre d'âges (mode âge
+  // uniquement). Toujours un tableau pour simplifier les usages en aval.
+  const refPoints = useMemo(() => {
+    if (mode !== 'age' || !referencePoints) return [];
+    return referencePoints
+      .filter((p) => p.age >= ageRange.min && p.age <= ageRange.max)
+      .map((p) => ({ x: p.age, y: p.height }));
+  }, [referencePoints, mode, ageRange]);
+
   const [xDomain, yDomain] = useMemo(() => {
-    const hasPoints = personData.some((p) => p.points.length > 0);
+    const hasPoints = personData.some((p) => p.points.length > 0) || refPoints.length > 0;
     if (!hasPoints) {
       return mode === 'age'
         ? [[ageRange.min, ageRange.max], [40, 200]]
@@ -207,12 +257,15 @@ function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPo
       xMax = new Date(xMax.getTime() + range * 0.02);
     }
 
-    const allH = personData.flatMap((p) => p.points.map((pt) => pt.y));
+    const allH = [
+      ...personData.flatMap((p) => p.points.map((pt) => pt.y)),
+      ...refPoints.map((pt) => pt.y),
+    ];
     const yMin = Math.max(0, Math.floor(d3.min(allH) / 10) * 10 - 5);
     const yMax = Math.ceil(d3.max(allH) / 10) * 10 + 5;
 
     return [[xMin, xMax], [yMin, yMax]];
-  }, [personData, mode, ageRange]);
+  }, [personData, mode, ageRange, refPoints]);
 
   const xScale = useMemo(() => {
     if (mode === 'age') return d3.scaleLinear().domain(xDomain).range([0, iw]);
@@ -327,6 +380,28 @@ function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPo
       .y((d) => yScale(d.y))
       .curve(d3.curveMonotoneX);
 
+    // Reference curve (carnet de santé) — drawn first, behind the people.
+    if (refPoints.length >= 2) {
+      g.append('path')
+        .datum(refPoints)
+        .attr('fill', 'none')
+        .attr('stroke', PALETTE.mutedLight)
+        .attr('stroke-width', 1.75)
+        .attr('stroke-dasharray', '5,4')
+        .attr('stroke-linecap', 'round')
+        .attr('d', line);
+
+      const refLast = refPoints[refPoints.length - 1];
+      g.append('text')
+        .attr('x', Math.min(xScale(refLast.x) + 6, iw + 4))
+        .attr('y', yScale(refLast.y) + 4)
+        .attr('font-family', 'Inter, sans-serif')
+        .attr('font-size', '10px')
+        .attr('font-weight', 600)
+        .attr('fill', PALETTE.mutedLight)
+        .text(referenceLabel);
+    }
+
     // Sort by final visible Y so labels stack predictably
     const sortedForLabels = [...visibleByPerson]
       .filter((p) => p.visible.length > 0)
@@ -415,7 +490,7 @@ function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPo
         .attr('fill', PALETTE.bg)
         .text(cursorLabel);
     }
-  }, [visibleByPerson, xScale, yScale, iw, ih, mode, progress, cutoff, showPoints, margin.left, margin.top]);
+  }, [visibleByPerson, xScale, yScale, iw, ih, mode, progress, cutoff, showPoints, refPoints, referenceLabel, margin.left, margin.top]);
 
   return (
     <div ref={containerRef} className="chart-container">
@@ -629,8 +704,14 @@ function AddPersonCard({ onAdd, usedColors }) {
 }
 
 // ─── Chart configuration ────────────────────────────────────────────────────
-function ChartConfigCard({ showPoints, onToggleShowPoints, people, onChangeColor }) {
+function ChartConfigCard({ showPoints, onToggleShowPoints, people, onChangeColor, reference, onChangeReference }) {
   const [open, setOpen] = useState(false);
+
+  const REFERENCE_OPTIONS = [
+    { value: 'none', label: 'Aucune' },
+    { value: 'filles', label: 'Filles' },
+    { value: 'garcons', label: 'Garçons' },
+  ];
 
   return (
     <div className="chart-config">
@@ -657,6 +738,24 @@ function ChartConfigCard({ showPoints, onToggleShowPoints, people, onChangeColor
             >
               <span className="switch-knob" />
             </button>
+          </div>
+
+          <div className="config-row config-row-col">
+            <span className="config-label">
+              Courbe de référence <span className="config-hint">(carnet de santé, médiane) · graphe « au même âge »</span>
+            </span>
+            <div className="mode-toggle reference-toggle" role="group" aria-label="Courbe de référence">
+              {REFERENCE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  className={reference === opt.value ? 'mode-btn active' : 'mode-btn'}
+                  aria-pressed={reference === opt.value}
+                  onClick={() => onChangeReference(opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {people.length > 0 && (
@@ -691,6 +790,7 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const initialPrefs = useMemo(() => loadPrefs(), []);
   const [showPoints, setShowPoints] = useState(initialPrefs.showPoints);
+  const [reference, setReference] = useState(initialPrefs.reference);
 
   // Persiste les données saisies pour les retrouver au rechargement.
   useEffect(() => {
@@ -807,14 +907,15 @@ export default function App() {
   const [ageRange, setAgeRange] = useState(initialPrefs.ageRange);
   const effectiveAgeRange = ageRange ?? ageBounds;
 
-  // Persiste les préférences d'affichage (toggle des points, intervalle d'âges).
+  // Persiste les préférences d'affichage (toggle des points, intervalle d'âges,
+  // courbe de référence).
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ showPoints, ageRange }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ showPoints, ageRange, reference }));
     } catch {
       // Stockage indisponible : on ignore silencieusement.
     }
-  }, [showPoints, ageRange]);
+  }, [showPoints, ageRange, reference]);
   const ageFilterActive =
     ageRange !== null &&
     (ageRange.min > ageBounds.min || ageRange.max < ageBounds.max);
@@ -1009,8 +1110,12 @@ export default function App() {
       gap: 12px; flex-wrap: wrap;
     }
     .config-row-col { flex-direction: column; align-items: flex-start; }
+    .config-row-col .config-label { margin-bottom: 8px; }
 
     .config-label { font-size: 12px; font-weight: 600; color: ${PALETTE.ink}; }
+    .config-hint { font-weight: 400; color: ${PALETTE.mutedLight}; }
+
+    .reference-toggle { width: 100%; max-width: 320px; margin-bottom: 0; }
 
     .switch {
       width: 40px; height: 22px; border-radius: 11px;
@@ -1383,6 +1488,8 @@ export default function App() {
             onToggleShowPoints={() => setShowPoints((v) => !v)}
             people={people}
             onChangeColor={handleChangeColor}
+            reference={reference}
+            onChangeReference={setReference}
           />
 
           <div className="charts-grid">
@@ -1401,6 +1508,8 @@ export default function App() {
               progress={progress}
               ageRange={effectiveAgeRange}
               showPoints={showPoints}
+              referencePoints={REFERENCE_CURVES[reference]?.points ?? null}
+              referenceLabel={REFERENCE_CURVES[reference]?.label ?? ''}
               title={<><em>Au même</em> âge</>}
               subtitle="Et si vous aviez tous le même âge ?"
             />
