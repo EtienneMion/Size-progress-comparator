@@ -934,7 +934,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `on-a-tous-grandi-${toISODate(new Date())}.json`;
+    a.download = `courbes-de-croissance-${toISODate(new Date())}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1489,12 +1489,12 @@ export default function App() {
       <div className="app">
         <div className="container">
           <header className="header">
-            <div className="eyebrow">Courbes de croissance</div>
+            <div className="eyebrow">Outil</div>
             <h1 className="main-title">
-              On a tous <em>grandi</em>.
+              Comparateur de <em>courbes de croissance</em>
             </h1>
             <p className="main-subtitle">
-              Saisis quelques tailles à différents âges, et regarde vos courbes se dessiner ensemble.
+              Comparez la taille de plusieurs personnes à âge égal ou au fil des années, à partir de quelques mesures.
               {yearRange && ` De ${yearRange.min} à ${yearRange.max}.`}
             </p>
           </header>

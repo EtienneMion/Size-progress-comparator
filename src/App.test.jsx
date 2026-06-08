@@ -8,13 +8,13 @@ describe('App', () => {
 
   it('renders the main heading', () => {
     render(<App />);
-    expect(screen.getByText(/grandi/i)).toBeInTheDocument();
+    expect(screen.getByText(/courbes de croissance/i)).toBeInTheDocument();
   });
 
   it('renders both chart titles', () => {
     render(<App />);
-    // The "time" chart title contains "des années".
-    expect(screen.getByText(/des années/i)).toBeInTheDocument();
+    // The "time" chart title contains "des années" (also appears in the subtitle).
+    expect(screen.getAllByText(/des années/i).length).toBeGreaterThan(0);
     // "âge" appears in several places (title, subtitle, labels), so assert
     // at least one occurrence rather than uniqueness.
     expect(screen.getAllByText(/âge/i).length).toBeGreaterThan(0);

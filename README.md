@@ -1,4 +1,4 @@
-# On a tous grandi · Comparateur de courbes de croissance
+# Comparateur de courbes de croissance
 
 Une petite application React qui permet de saisir des tailles à différents âges
 pour plusieurs personnes, puis de comparer leurs courbes de croissance — à la
