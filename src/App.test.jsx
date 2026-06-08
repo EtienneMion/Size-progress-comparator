@@ -1,8 +1,11 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import App from './App.jsx';
 
 describe('App', () => {
+  // Each test starts from a clean slate so persisted state never leaks across.
+  beforeEach(() => localStorage.clear());
+
   it('renders the main heading', () => {
     render(<App />);
     expect(screen.getByText(/grandi/i)).toBeInTheDocument();
@@ -86,6 +89,28 @@ describe('App', () => {
       expect(colorInput).toBeInTheDocument();
       fireEvent.change(colorInput, { target: { value: '#123456' } });
       expect(colorInput).toHaveValue('#123456');
+    });
+  });
+
+  describe('persistence', () => {
+    it('restores data changes across reloads via localStorage', () => {
+      const { unmount } = render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      fireEvent.change(screen.getByLabelText('Couleur de Hélène'), {
+        target: { value: '#123456' },
+      });
+      // Unmount + remount simulates a page reload.
+      unmount();
+      render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      expect(screen.getByLabelText('Couleur de Hélène')).toHaveValue('#123456');
+    });
+
+    it('falls back to the sample data when nothing is stored', () => {
+      render(<App />);
+      for (const name of ['Hélène', 'Julien', 'Léa', 'Sacha']) {
+        expect(screen.getAllByText(name).length).toBeGreaterThan(0);
+      }
     });
   });
 });

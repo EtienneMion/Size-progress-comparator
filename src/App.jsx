@@ -82,6 +82,24 @@ const SAMPLE_DATA = [
   },
 ];
 
+// ─── Persistence (localStorage) ───────────────────────────────────────────────
+const STORAGE_KEY = 'growth-comparator:people';
+
+// Charge les personnes depuis le localStorage ; retombe sur l'exemple si rien
+// n'est stocké ou si la donnée est illisible. Une liste vide stockée est
+// respectée (l'utilisateur a tout supprimé volontairement).
+const loadPeople = () => {
+  if (typeof localStorage === 'undefined') return SAMPLE_DATA;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === null) return SAMPLE_DATA;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : SAMPLE_DATA;
+  } catch {
+    return SAMPLE_DATA;
+  }
+};
+
 // ─── Chart ──────────────────────────────────────────────────────────────────
 function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPoints = true }) {
   const svgRef = useRef(null);
@@ -620,10 +638,19 @@ function ChartConfigCard({ showPoints, onToggleShowPoints, people, onChangeColor
 
 // ─── Main app ───────────────────────────────────────────────────────────────
 export default function App() {
-  const [people, setPeople] = useState(SAMPLE_DATA);
+  const [people, setPeople] = useState(loadPeople);
   const [progress, setProgress] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showPoints, setShowPoints] = useState(true);
+
+  // Persiste les données saisies pour les retrouver au rechargement.
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(people));
+    } catch {
+      // Stockage indisponible (mode privé, quota…) : on ignore silencieusement.
+    }
+  }, [people]);
 
   useEffect(() => {
     if (!isPlaying) return;

@@ -85,5 +85,7 @@ Déploiement manuel : `npm run build && npx wrangler deploy`.
 - Les mesures sont identifiées par `(date, height)` ; deux mesures identiques
   poseraient problème à la suppression. Passer à des IDs de mesure stables
   serait plus robuste.
-- Pas de persistance : les données saisies sont perdues au rechargement. Un
-  `localStorage` (ou paramètres d'URL) serait une amélioration naturelle.
+- Persistance : les personnes/mesures sont sauvegardées dans `localStorage`
+  (clé `growth-comparator:people`, voir `loadPeople` dans `src/App.jsx`) et
+  rechargées au démarrage. Les préférences d'affichage (intervalle d'âges,
+  affichage des points) ne sont pas encore persistées — piste d'amélioration.
