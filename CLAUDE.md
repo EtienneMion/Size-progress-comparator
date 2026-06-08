@@ -88,6 +88,8 @@ Déploiement manuel : `npm run build && npx wrangler deploy`.
 - Persistance : les personnes/mesures sont sauvegardées dans `localStorage`
   (clé `growth-comparator:people`, voir `loadPeople` dans `src/App.jsx`) et
   rechargées au démarrage. Les préférences d'affichage (intervalle d'âges,
-  toggle des points, courbe de référence carnet de santé) sont elles aussi
-  persistées (clé `growth-comparator:prefs`, voir `loadPrefs`). Les courbes de
-  référence (médianes filles/garçons) sont dans `REFERENCE_CURVES`.
+  toggle des points, courbe de référence carnet de santé, complétion des trous)
+  sont elles aussi persistées (clé `growth-comparator:prefs`, voir `loadPrefs`).
+  Les courbes de référence (médianes filles/garçons) sont dans
+  `REFERENCE_CURVES` ; la complétion des trous (`fillGapsWithCurve`) suit la
+  moyenne `GENERIC_GROWTH`, recalée sur les points réels encadrants.

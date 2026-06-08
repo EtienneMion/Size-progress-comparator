@@ -72,6 +72,64 @@ const addYears = (dateStr, years) => {
 const toISODate = (d) =>
   (d instanceof Date ? d : new Date(d)).toISOString().split('T')[0];
 
+// ─── Gap filling ──────────────────────────────────────────────────────────────
+// Courbe de croissance « générique » = moyenne des médianes filles/garçons.
+// Sert de forme pour compléter les trous de données (les deux listes partagent
+// les mêmes âges, voir REFERENCE_CURVES).
+const GENERIC_GROWTH = REFERENCE_CURVES.filles.points.map((p, i) => ({
+  age: p.age,
+  height: (p.height + REFERENCE_CURVES.garcons.points[i].height) / 2,
+}));
+
+// Taille de référence interpolée linéairement à un âge donné (bornée aux extrêmes).
+const refHeightAt = (curve, age) => {
+  if (age <= curve[0].age) return curve[0].height;
+  const last = curve[curve.length - 1];
+  if (age >= last.age) return last.height;
+  for (let i = 1; i < curve.length; i++) {
+    if (age <= curve[i].age) {
+      const a = curve[i - 1], b = curve[i];
+      return a.height + (b.height - a.height) * ((age - a.age) / (b.age - a.age));
+    }
+  }
+  return last.height;
+};
+
+// Au-delà de ce trou (en années) entre deux points réels, on insère des points
+// estimés suivant la forme de la courbe générique.
+const GAP_THRESHOLD_YEARS = 1;
+
+// Complète les trous entre points réels consécutifs : on suit la forme de la
+// courbe générique, recalée par un offset interpolé linéairement entre les deux
+// points encadrants (la courbe passe donc exactement par les points réels).
+const fillGapsWithCurve = (points, birthDate) => {
+  if (points.length < 2) return points;
+  const result = [];
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i];
+    result.push(a);
+    const b = points[i + 1];
+    if (!b || b.xAge - a.xAge <= GAP_THRESHOLD_YEARS) continue;
+
+    const offsetA = a.y - refHeightAt(GENERIC_GROWTH, a.xAge);
+    const offsetB = b.y - refHeightAt(GENERIC_GROWTH, b.xAge);
+    for (const node of GENERIC_GROWTH) {
+      const t = node.age;
+      if (t <= a.xAge + 1e-6 || t >= b.xAge - 1e-6) continue;
+      const frac = (t - a.xAge) / (b.xAge - a.xAge);
+      const offset = offsetA + (offsetB - offsetA) * frac;
+      result.push({
+        xRaw: addYears(birthDate, t),
+        xAge: t,
+        y: refHeightAt(GENERIC_GROWTH, t) + offset,
+        isReal: false,
+        isFilled: true,
+      });
+    }
+  }
+  return result;
+};
+
 // ─── Sample data: a family ──────────────────────────────────────────────────
 // Mesures mensuelles sur la première année (0 → 12 mois), à partir d'une liste
 // de tailles indexée par mois.
@@ -152,7 +210,7 @@ const loadPeople = () => {
 
 // Préférences d'affichage (toggle des points, intervalle d'âges). `ageRange`
 // vaut `null` quand aucun filtre n'est actif (on suit les bornes des données).
-const DEFAULT_PREFS = { showPoints: true, ageRange: null, reference: 'none' };
+const DEFAULT_PREFS = { showPoints: true, ageRange: null, reference: 'none', fillGaps: false };
 
 const loadPrefs = () => {
   if (typeof localStorage === 'undefined') return DEFAULT_PREFS;
@@ -190,7 +248,7 @@ const sanitizePeople = (arr) => {
 };
 
 // ─── Chart ──────────────────────────────────────────────────────────────────
-function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPoints = true, referencePoints = null, referenceLabel = '' }) {
+function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPoints = true, referencePoints = null, referenceLabel = '', fillGaps = false }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
   const [width, setWidth] = useState(640);
@@ -214,18 +272,22 @@ function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPo
   const ih = height - margin.top - margin.bottom;
 
   const personData = useMemo(() => {
-    return people.map((p) => ({
-      ...p,
-      points: p.measurements
+    return people.map((p) => {
+      const real = p.measurements
         .map((m) => ({
           xRaw: new Date(m.date),
           xAge: yearsBetween(p.birthDate, m.date),
           y: m.height,
+          isReal: true,
         }))
-        .filter((pt) => pt.xAge >= ageRange.min && pt.xAge <= ageRange.max)
-        .sort((a, b) => a.xRaw - b.xRaw),
-    }));
-  }, [people, ageRange]);
+        .sort((a, b) => a.xRaw - b.xRaw);
+      const withFill = fillGaps ? fillGapsWithCurve(real, p.birthDate) : real;
+      return {
+        ...p,
+        points: withFill.filter((pt) => pt.xAge >= ageRange.min && pt.xAge <= ageRange.max),
+      };
+    });
+  }, [people, ageRange, fillGaps]);
 
   // Points de la courbe de référence visibles dans la fenêtre d'âges (mode âge
   // uniquement). Toujours un tableau pour simplifier les usages en aval.
@@ -297,7 +359,7 @@ function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPo
         const pt = person.points[i];
         const ptX = xValOf(pt[xKey]);
         if (ptX <= cutoffVal) {
-          visible.push({ x: pt[xKey], y: pt.y, isReal: true });
+          visible.push({ x: pt[xKey], y: pt.y, isReal: pt.isReal });
         } else {
           if (i > 0) {
             const prev = person.points[i - 1];
@@ -704,7 +766,7 @@ function AddPersonCard({ onAdd, usedColors }) {
 }
 
 // ─── Chart configuration ────────────────────────────────────────────────────
-function ChartConfigCard({ showPoints, onToggleShowPoints, people, onChangeColor, reference, onChangeReference }) {
+function ChartConfigCard({ showPoints, onToggleShowPoints, people, onChangeColor, reference, onChangeReference, fillGaps, onToggleFillGaps }) {
   const [open, setOpen] = useState(false);
 
   const REFERENCE_OPTIONS = [
@@ -735,6 +797,21 @@ function ChartConfigCard({ showPoints, onToggleShowPoints, people, onChangeColor
               aria-label="Afficher les points"
               className={`switch ${showPoints ? 'on' : ''}`}
               onClick={onToggleShowPoints}
+            >
+              <span className="switch-knob" />
+            </button>
+          </div>
+
+          <div className="config-row">
+            <span className="config-label">
+              Compléter les trous <span className="config-hint">(estimation suivant une courbe de croissance)</span>
+            </span>
+            <button
+              role="switch"
+              aria-checked={fillGaps}
+              aria-label="Compléter les trous"
+              className={`switch ${fillGaps ? 'on' : ''}`}
+              onClick={onToggleFillGaps}
             >
               <span className="switch-knob" />
             </button>
@@ -791,6 +868,7 @@ export default function App() {
   const initialPrefs = useMemo(() => loadPrefs(), []);
   const [showPoints, setShowPoints] = useState(initialPrefs.showPoints);
   const [reference, setReference] = useState(initialPrefs.reference);
+  const [fillGaps, setFillGaps] = useState(initialPrefs.fillGaps);
 
   // Persiste les données saisies pour les retrouver au rechargement.
   useEffect(() => {
@@ -908,14 +986,14 @@ export default function App() {
   const effectiveAgeRange = ageRange ?? ageBounds;
 
   // Persiste les préférences d'affichage (toggle des points, intervalle d'âges,
-  // courbe de référence).
+  // courbe de référence, complétion des trous).
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ showPoints, ageRange, reference }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ showPoints, ageRange, reference, fillGaps }));
     } catch {
       // Stockage indisponible : on ignore silencieusement.
     }
-  }, [showPoints, ageRange, reference]);
+  }, [showPoints, ageRange, reference, fillGaps]);
   const ageFilterActive =
     ageRange !== null &&
     (ageRange.min > ageBounds.min || ageRange.max < ageBounds.max);
@@ -1490,6 +1568,8 @@ export default function App() {
             onChangeColor={handleChangeColor}
             reference={reference}
             onChangeReference={setReference}
+            fillGaps={fillGaps}
+            onToggleFillGaps={() => setFillGaps((v) => !v)}
           />
 
           <div className="charts-grid">
@@ -1499,6 +1579,7 @@ export default function App() {
               progress={progress}
               ageRange={effectiveAgeRange}
               showPoints={showPoints}
+              fillGaps={fillGaps}
               title={<><em>Au fil</em> des années</>}
               subtitle="Tout le monde sur la même frise du temps"
             />
@@ -1508,6 +1589,7 @@ export default function App() {
               progress={progress}
               ageRange={effectiveAgeRange}
               showPoints={showPoints}
+              fillGaps={fillGaps}
               referencePoints={REFERENCE_CURVES[reference]?.points ?? null}
               referenceLabel={REFERENCE_CURVES[reference]?.label ?? ''}
               title={<><em>Au même</em> âge</>}

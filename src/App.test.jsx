@@ -91,6 +91,16 @@ describe('App', () => {
       expect(colorInput).toHaveValue('#123456');
     });
 
+    it('toggles the "fill gaps" switch', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      const toggle = screen.getByLabelText('Compléter les trous');
+      // Off by default.
+      expect(toggle).toHaveAttribute('aria-checked', 'false');
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute('aria-checked', 'true');
+    });
+
     it('lets the user pick a reference growth curve', () => {
       render(<App />);
       fireEvent.click(screen.getByText(/Configurer le graphique/i));
@@ -148,6 +158,18 @@ describe('App', () => {
       expect(screen.getByLabelText('Âge minimum')).toHaveValue(7);
       // A narrowed range was restored, so the reset affordance is present.
       expect(screen.getByText(/Tout afficher/i)).toBeInTheDocument();
+    });
+
+    it('restores the "fill gaps" preference across reloads', () => {
+      const { unmount } = render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      fireEvent.click(screen.getByLabelText('Compléter les trous'));
+      unmount();
+      render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      expect(screen.getByLabelText('Compléter les trous')).toHaveAttribute(
+        'aria-checked', 'true'
+      );
     });
 
     it('restores the reference curve preference across reloads', () => {
