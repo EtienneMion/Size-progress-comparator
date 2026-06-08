@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Play, Pause, RotateCcw, Plus, X, UserPlus, ChevronDown } from 'lucide-react';
 
@@ -586,6 +586,9 @@ export default function App() {
     };
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
+    // `progress` is intentionally read once at play time, not tracked — adding it
+    // would restart the animation on every frame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying]);
 
   const handlePlayPause = () => {

@@ -12,14 +12,24 @@ années et « au même âge ». Construit avec **React 18 + Vite**, graphiques e
 ## Commandes
 
 ```bash
-npm install      # dépendances (auto en session web via le hook SessionStart)
-npm run dev      # serveur de dev → http://localhost:5173
-npm run build    # build de prod → dist/
-npm run preview  # sert le build de prod localement
+npm install        # dépendances (auto en session web via le hook SessionStart)
+npm run dev        # serveur de dev → http://localhost:5173
+npm run build      # build de prod → dist/
+npm run preview    # sert le build de prod localement
+npm run lint       # ESLint (flat config, eslint.config.js)
+npm run test       # Vitest (jsdom) en une passe
+npm run test:watch # Vitest en mode watch
 ```
 
-Il n'y a **pas de linter ni de tests** configurés. Le garde-fou de vérification
-avant tout commit est **`npm run build`** : il doit passer sans erreur.
+Avant tout commit, les trois doivent passer : **`npm run lint`**,
+**`npm run test`**, **`npm run build`**.
+
+- **ESLint** : config plate dans `eslint.config.js` (React + hooks + react-refresh).
+  `react/no-unescaped-entities` est désactivé (apostrophes FR dans le JSX).
+- **Vitest** : config dans `vite.config.js` (`environment: 'jsdom'`), setup dans
+  `src/test/setup.js` (matchers jest-dom + stub `ResizeObserver` que jsdom n'a pas).
+  Tests dans `src/**/*.test.jsx`. Note : les noms/titres apparaissent souvent
+  en double (label SVG du graphe + carte), donc préférer `getAllByText`.
 
 ## Structure
 
@@ -27,11 +37,14 @@ avant tout commit est **`npm run build`** : il doit passer sans erreur.
 index.html              # point d'entrée HTML (Vite)
 src/main.jsx            # bootstrap React (monte <App/>, importe index.css)
 src/App.jsx             # TOUTE l'app : data d'exemple, charts D3, UI, CSS-in-JS
+src/App.test.jsx        # tests de rendu (Vitest + Testing Library)
 src/index.css           # reset CSS global minimal (marges body)
+src/test/setup.js       # setup Vitest (jest-dom + stub ResizeObserver)
 public/favicon.svg      # favicon
-vite.config.js          # Vite + @vitejs/plugin-react
+vite.config.js          # Vite + @vitejs/plugin-react + config Vitest
+eslint.config.js        # config ESLint (flat config)
 wrangler.toml           # config de déploiement Cloudflare (voir plus bas)
-.claude/                # hook SessionStart (npm install en session web)
+.claude/                # hook SessionStart (npm install en session web, async)
 ```
 
 `src/App.jsx` contient presque tout, y compris les styles (injectés via une

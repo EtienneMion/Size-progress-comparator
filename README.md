@@ -15,6 +15,8 @@ npm install
 npm run dev      # serveur de dev sur http://localhost:5173
 npm run build    # build de production dans dist/
 npm run preview  # prévisualise le build de production
+npm run lint     # ESLint
+npm run test     # Vitest (jsdom)
 ```
 
 ## Déploiement sur Cloudflare
