@@ -32,11 +32,19 @@ const toISODate = (d) =>
   (d instanceof Date ? d : new Date(d)).toISOString().split('T')[0];
 
 // ─── Sample data: a family ──────────────────────────────────────────────────
+// Mesures mensuelles sur la première année (0 → 12 mois), à partir d'une liste
+// de tailles indexée par mois.
+const firstYear = (birthDate, heights) =>
+  heights.map((height, month) => ({
+    date: toISODate(addYears(birthDate, month / 12)),
+    height,
+  }));
+
 const SAMPLE_DATA = [
   {
     id: 'p1', name: 'Hélène', birthDate: '1985-03-12', color: '#4f46e5',
     measurements: [
-      { date: '1986-03-12', height: 74 },
+      ...firstYear('1985-03-12', [50, 53, 57, 60, 62, 64, 66, 68, 69, 71, 72, 73, 74]),
       { date: '1988-06-15', height: 95 },
       { date: '1991-09-01', height: 118 },
       { date: '1994-09-01', height: 135 },
@@ -49,7 +57,7 @@ const SAMPLE_DATA = [
   {
     id: 'p2', name: 'Julien', birthDate: '1983-08-22', color: '#e11d48',
     measurements: [
-      { date: '1984-08-22', height: 77 },
+      ...firstYear('1983-08-22', [51, 55, 58, 61, 63, 66, 68, 70, 72, 73, 75, 76, 77]),
       { date: '1987-08-22', height: 102 },
       { date: '1990-09-01', height: 124 },
       { date: '1993-09-01', height: 142 },
@@ -62,7 +70,7 @@ const SAMPLE_DATA = [
   {
     id: 'p3', name: 'Léa', birthDate: '2012-06-04', color: '#059669',
     measurements: [
-      { date: '2013-06-04', height: 75 },
+      ...firstYear('2012-06-04', [50, 54, 57, 60, 62, 65, 67, 68, 70, 72, 73, 74, 75]),
       { date: '2015-06-04', height: 98 },
       { date: '2018-09-01', height: 124 },
       { date: '2021-09-01', height: 144 },
@@ -73,7 +81,7 @@ const SAMPLE_DATA = [
   {
     id: 'p4', name: 'Sacha', birthDate: '2015-11-18', color: '#d97706',
     measurements: [
-      { date: '2016-11-18', height: 76 },
+      ...firstYear('2015-11-18', [51, 54, 58, 61, 63, 65, 67, 69, 71, 72, 74, 75, 76]),
       { date: '2018-11-18', height: 92 },
       { date: '2020-09-01', height: 110 },
       { date: '2023-09-01', height: 128 },
