@@ -1,0 +1,76 @@
+# CLAUDE.md
+
+Contexte projet pour Claude Code. Lis ceci avant de travailler sur le dépôt.
+
+## Ce que c'est
+
+« On a tous grandi » — une petite application web (mono-page) qui compare les
+**courbes de croissance** (taille) de plusieurs personnes, à la fois au fil des
+années et « au même âge ». Construit avec **React 18 + Vite**, graphiques en
+**D3**, icônes **lucide-react**. Aucune dépendance backend : tout est côté client.
+
+## Commandes
+
+```bash
+npm install      # dépendances (auto en session web via le hook SessionStart)
+npm run dev      # serveur de dev → http://localhost:5173
+npm run build    # build de prod → dist/
+npm run preview  # sert le build de prod localement
+```
+
+Il n'y a **pas de linter ni de tests** configurés. Le garde-fou de vérification
+avant tout commit est **`npm run build`** : il doit passer sans erreur.
+
+## Structure
+
+```
+index.html              # point d'entrée HTML (Vite)
+src/main.jsx            # bootstrap React (monte <App/>, importe index.css)
+src/App.jsx             # TOUTE l'app : data d'exemple, charts D3, UI, CSS-in-JS
+src/index.css           # reset CSS global minimal (marges body)
+public/favicon.svg      # favicon
+vite.config.js          # Vite + @vitejs/plugin-react
+wrangler.toml           # config de déploiement Cloudflare (voir plus bas)
+.claude/                # hook SessionStart (npm install en session web)
+```
+
+`src/App.jsx` contient presque tout, y compris les styles (injectés via une
+balise `<style>` dans le composant `App`, pas dans un fichier `.css`). Les
+couleurs/tokens sont en haut du fichier (`PALETTE`, `PERSON_COLORS`).
+
+## Déploiement (Cloudflare — Workers Static Assets)
+
+Le site est servi par un Worker « assets-only » qui sert le contenu de `dist/`.
+La config est dans `wrangler.toml` :
+
+```toml
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+```
+
+Le projet Cloudflare est connecté à ce dépôt GitHub via le dashboard avec :
+- **Build command** : `npm run build`
+- **Deploy command** : `npx wrangler deploy`  ← Workers, PAS `wrangler pages deploy`
+- **Production branch** : `main`
+
+⚠️ Piège connu : ce projet utilise **`wrangler deploy`** (Workers Static Assets),
+pas `wrangler pages deploy`. Ne PAS remettre `pages_build_output_dir` dans
+`wrangler.toml` — `wrangler deploy` ne le lit pas et échoue avec
+« Missing entry-point to Worker script or to assets directory ».
+
+Déploiement manuel : `npm run build && npx wrangler deploy`.
+
+## Workflow git
+
+- Branche par défaut : `main`. Développer sur des branches de feature et merger
+  dans `main` (chaque push sur `main` redéploie via Cloudflare).
+- Toujours vérifier `npm run build` avant de pousser.
+
+## Pistes d'amélioration connues
+
+- Les mesures sont identifiées par `(date, height)` ; deux mesures identiques
+  poseraient problème à la suppression. Passer à des IDs de mesure stables
+  serait plus robuste.
+- Pas de persistance : les données saisies sont perdues au rechargement. Un
+  `localStorage` (ou paramètres d'URL) serait une amélioration naturelle.
