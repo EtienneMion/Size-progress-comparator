@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
-import { Play, Pause, RotateCcw, Plus, X, UserPlus, ChevronDown, SlidersHorizontal, Settings2 } from 'lucide-react';
+import { Play, Pause, RotateCcw, Plus, X, UserPlus, ChevronDown, SlidersHorizontal, Settings2, Download, Upload } from 'lucide-react';
 
 // ─── Design tokens ──────────────────────────────────────────────────────────
 const PALETTE = {
@@ -116,6 +116,28 @@ const loadPrefs = () => {
   } catch {
     return DEFAULT_PREFS;
   }
+};
+
+// ─── Import / export ──────────────────────────────────────────────────────────
+// Normalise une liste de personnes (issue d'un fichier importé) : complète les
+// champs manquants et écarte les mesures invalides. Lève une erreur si la
+// structure n'a rien d'une liste de personnes.
+const sanitizePeople = (arr) => {
+  if (!Array.isArray(arr)) throw new Error('Format invalide');
+  return arr.map((p, i) => {
+    if (!p || typeof p !== 'object') throw new Error('Format invalide');
+    return {
+      id: typeof p.id === 'string' && p.id ? p.id : `p${Date.now()}-${i}`,
+      name: typeof p.name === 'string' && p.name.trim() ? p.name.trim() : `Personne ${i + 1}`,
+      birthDate: typeof p.birthDate === 'string' ? p.birthDate : toISODate(new Date()),
+      color: typeof p.color === 'string' ? p.color : PERSON_COLORS[i % PERSON_COLORS.length],
+      measurements: Array.isArray(p.measurements)
+        ? p.measurements
+            .filter((m) => m && typeof m.date === 'string' && Number.isFinite(m.height))
+            .map((m) => ({ date: m.date, height: m.height }))
+        : [],
+    };
+  });
 };
 
 // ─── Chart ──────────────────────────────────────────────────────────────────
@@ -718,6 +740,36 @@ export default function App() {
   const handleChangeColor = (id, color) =>
     setPeople(people.map((p) => (p.id === id ? { ...p, color } : p)));
 
+  const fileInputRef = useRef(null);
+  const [importError, setImportError] = useState(null);
+
+  const handleExport = () => {
+    const blob = new Blob([JSON.stringify(people, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `on-a-tous-grandi-${toISODate(new Date())}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permet de réimporter le même fichier ensuite
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        setPeople(sanitizePeople(JSON.parse(reader.result)));
+        setImportError(null);
+      } catch {
+        setImportError('Fichier invalide : impossible de lire les données.');
+      }
+    };
+    reader.onerror = () => setImportError('Lecture du fichier impossible.');
+    reader.readAsText(file);
+  };
+
   const usedColors = people.map((p) => p.color);
 
   const yearRange = useMemo(() => {
@@ -1034,6 +1086,35 @@ export default function App() {
     }
     @media (min-width: 560px) { .people-grid { grid-template-columns: 1fr 1fr; } }
 
+    .data-toolbar {
+      display: flex; gap: 8px; justify-content: flex-end;
+      margin: -4px 0 14px;
+    }
+    .data-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 12px;
+      border: 1px solid ${PALETTE.border};
+      background: ${PALETTE.surface};
+      color: ${PALETTE.muted};
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .data-btn:hover:not(:disabled) {
+      color: ${PALETTE.ink}; border-color: ${PALETTE.borderDashed};
+    }
+    .data-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .data-file-input {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0, 0, 0, 0); border: 0;
+    }
+    .data-error {
+      margin: -6px 0 14px; text-align: right;
+      font-size: 12px; color: #e11d48;
+    }
+
     .person-card {
       background: ${PALETTE.surface};
       border: 1px solid ${PALETTE.border};
@@ -1320,6 +1401,24 @@ export default function App() {
           <div className="section-divider">
             <h2 className="section-title">Tout le monde</h2>
           </div>
+
+          <div className="data-toolbar">
+            <button className="data-btn" onClick={handleExport} disabled={people.length === 0}>
+              <Download size={14} /> Exporter
+            </button>
+            <button className="data-btn" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={14} /> Importer
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImportFile}
+              className="data-file-input"
+              aria-label="Importer un fichier de données"
+            />
+          </div>
+          {importError && <p className="data-error" role="alert">{importError}</p>}
 
           {people.length === 0 && (
             <div className="empty-state">

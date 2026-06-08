@@ -1,5 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import App from './App.jsx';
 
 describe('App', () => {
@@ -133,6 +133,64 @@ describe('App', () => {
       expect(screen.getByLabelText('Âge minimum')).toHaveValue(7);
       // A narrowed range was restored, so the reset affordance is present.
       expect(screen.getByText(/Tout afficher/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('import / export', () => {
+    it('exports the data as a downloadable JSON file', () => {
+      const createObjectURL = vi.fn(() => 'blob:fake');
+      const revokeObjectURL = vi.fn();
+      vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+      const clickSpy = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => {});
+
+      render(<App />);
+      fireEvent.click(screen.getByText(/Exporter/i));
+
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+
+      clickSpy.mockRestore();
+      vi.unstubAllGlobals();
+    });
+
+    it('imports people from a JSON file', async () => {
+      render(<App />);
+      const payload = [
+        {
+          id: 'imp1', name: 'Robin', birthDate: '2000-01-01', color: '#123456',
+          measurements: [{ date: '2005-01-01', height: 110 }],
+        },
+      ];
+      const file = new File([JSON.stringify(payload)], 'data.json', {
+        type: 'application/json',
+      });
+      fireEvent.change(screen.getByLabelText('Importer un fichier de données'), {
+        target: { files: [file] },
+      });
+
+      await waitFor(() =>
+        expect(screen.getAllByText('Robin').length).toBeGreaterThan(0)
+      );
+      // The previous sample person is gone after a full replace.
+      expect(screen.queryByText('Hélène')).not.toBeInTheDocument();
+    });
+
+    it('shows an error when the imported file is not valid JSON', async () => {
+      render(<App />);
+      const file = new File(['not json at all'], 'bad.json', {
+        type: 'application/json',
+      });
+      fireEvent.change(screen.getByLabelText('Importer un fichier de données'), {
+        target: { files: [file] },
+      });
+
+      await waitFor(() =>
+        expect(screen.getByRole('alert')).toBeInTheDocument()
+      );
+      // Existing data is left untouched on a failed import.
+      expect(screen.getAllByText('Hélène').length).toBeGreaterThan(0);
     });
   });
 });
