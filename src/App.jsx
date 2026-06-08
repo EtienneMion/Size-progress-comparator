@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
-import { Play, Pause, RotateCcw, Plus, X, UserPlus, ChevronDown, SlidersHorizontal } from 'lucide-react';
+import { Play, Pause, RotateCcw, Plus, X, UserPlus, ChevronDown, SlidersHorizontal, Settings2 } from 'lucide-react';
 
 // ─── Design tokens ──────────────────────────────────────────────────────────
 const PALETTE = {
@@ -83,7 +83,7 @@ const SAMPLE_DATA = [
 ];
 
 // ─── Chart ──────────────────────────────────────────────────────────────────
-function GrowthChart({ people, mode, progress, title, subtitle, ageRange }) {
+function GrowthChart({ people, mode, progress, title, subtitle, ageRange, showPoints = true }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
   const [width, setWidth] = useState(640);
@@ -280,17 +280,19 @@ function GrowthChart({ people, mode, progress, title, subtitle, ageRange }) {
           .attr('d', line);
       }
 
-      person.visible
-        .filter((p) => p.isReal)
-        .forEach((pt) => {
-          g.append('circle')
-            .attr('cx', xScale(pt.x))
-            .attr('cy', yScale(pt.y))
-            .attr('r', 3.5)
-            .attr('fill', PALETTE.surface)
-            .attr('stroke', person.color)
-            .attr('stroke-width', 1.8);
-        });
+      if (showPoints) {
+        person.visible
+          .filter((p) => p.isReal)
+          .forEach((pt) => {
+            g.append('circle')
+              .attr('cx', xScale(pt.x))
+              .attr('cy', yScale(pt.y))
+              .attr('r', 3.5)
+              .attr('fill', PALETTE.surface)
+              .attr('stroke', person.color)
+              .attr('stroke-width', 1.8);
+          });
+      }
     });
 
     // Labels with simple anti-overlap
@@ -347,7 +349,7 @@ function GrowthChart({ people, mode, progress, title, subtitle, ageRange }) {
         .attr('fill', PALETTE.bg)
         .text(cursorLabel);
     }
-  }, [visibleByPerson, xScale, yScale, iw, ih, mode, progress, cutoff, margin.left, margin.top]);
+  }, [visibleByPerson, xScale, yScale, iw, ih, mode, progress, cutoff, showPoints, margin.left, margin.top]);
 
   return (
     <div ref={containerRef} className="chart-container">
@@ -560,11 +562,68 @@ function AddPersonCard({ onAdd, usedColors }) {
   );
 }
 
+// ─── Chart configuration ────────────────────────────────────────────────────
+function ChartConfigCard({ showPoints, onToggleShowPoints, people, onChangeColor }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="chart-config">
+      <button
+        className="chart-config-header"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
+        <Settings2 size={15} color={PALETTE.muted} />
+        <span className="chart-config-title">Configurer le graphique</span>
+        <ChevronDown size={16} className={`chevron ${open ? 'open' : ''}`} color={PALETTE.muted} />
+      </button>
+
+      {open && (
+        <div className="chart-config-body">
+          <div className="config-row">
+            <span className="config-label">Afficher les points</span>
+            <button
+              role="switch"
+              aria-checked={showPoints}
+              aria-label="Afficher les points"
+              className={`switch ${showPoints ? 'on' : ''}`}
+              onClick={onToggleShowPoints}
+            >
+              <span className="switch-knob" />
+            </button>
+          </div>
+
+          {people.length > 0 && (
+            <div className="config-row config-row-col">
+              <span className="config-label">Couleurs des courbes</span>
+              <div className="color-list">
+                {people.map((p) => (
+                  <label key={p.id} className="color-item">
+                    <input
+                      type="color"
+                      value={p.color}
+                      onChange={(e) => onChangeColor(p.id, e.target.value)}
+                      className="color-swatch"
+                      aria-label={`Couleur de ${p.name}`}
+                    />
+                    <span className="color-name">{p.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main app ───────────────────────────────────────────────────────────────
 export default function App() {
   const [people, setPeople] = useState(SAMPLE_DATA);
   const [progress, setProgress] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showPoints, setShowPoints] = useState(true);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -610,6 +669,8 @@ export default function App() {
         p.id === id ? { ...p, measurements: p.measurements.filter((_, i) => i !== idx) } : p
       )
     );
+  const handleChangeColor = (id, color) =>
+    setPeople(people.map((p) => (p.id === id ? { ...p, color } : p)));
 
   const usedColors = people.map((p) => p.color);
 
@@ -800,6 +861,75 @@ export default function App() {
       transition: all 0.15s ease;
     }
     .age-filter-reset:hover { color: ${PALETTE.ink}; border-color: ${PALETTE.borderDashed}; }
+
+    .chart-config {
+      background: ${PALETTE.surface};
+      border: 1px solid ${PALETTE.border};
+      border-radius: 14px;
+      margin: 0 0 24px;
+      overflow: hidden;
+      box-shadow: 0 1px 0 rgba(28,22,17,0.02);
+    }
+
+    .chart-config-header {
+      width: 100%;
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px;
+      background: transparent; border: none; cursor: pointer;
+      font-family: 'Inter', sans-serif;
+    }
+    .chart-config-title {
+      font-size: 12px; font-weight: 600; color: ${PALETTE.ink};
+      margin-right: auto;
+    }
+
+    .chart-config-body {
+      padding: 6px 14px 14px;
+      border-top: 1px dashed ${PALETTE.border};
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    .config-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+    }
+    .config-row-col { flex-direction: column; align-items: flex-start; }
+
+    .config-label { font-size: 12px; font-weight: 600; color: ${PALETTE.ink}; }
+
+    .switch {
+      width: 40px; height: 22px; border-radius: 11px;
+      background: ${PALETTE.border}; border: none;
+      position: relative; cursor: pointer; flex-shrink: 0;
+      padding: 0; transition: background 0.15s ease;
+    }
+    .switch.on { background: ${PALETTE.ink}; }
+    .switch-knob {
+      position: absolute; top: 2px; left: 2px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: ${PALETTE.surface};
+      transition: transform 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    }
+    .switch.on .switch-knob { transform: translateX(18px); }
+
+    .color-list {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      width: 100%;
+    }
+    .color-item {
+      display: flex; align-items: center; gap: 6px; cursor: pointer;
+    }
+    .color-swatch {
+      width: 24px; height: 24px; padding: 0;
+      border: 1px solid ${PALETTE.border};
+      border-radius: 6px; background: none; cursor: pointer;
+      -webkit-appearance: none; appearance: none;
+    }
+    .color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+    .color-swatch::-webkit-color-swatch { border: none; border-radius: 5px; }
+    .color-swatch::-moz-color-swatch { border: none; border-radius: 5px; }
+    .color-name { font-size: 11px; color: ${PALETTE.muted}; }
 
     .charts-grid {
       display: grid; gap: 16px;
@@ -1104,12 +1234,20 @@ export default function App() {
             )}
           </div>
 
+          <ChartConfigCard
+            showPoints={showPoints}
+            onToggleShowPoints={() => setShowPoints((v) => !v)}
+            people={people}
+            onChangeColor={handleChangeColor}
+          />
+
           <div className="charts-grid">
             <GrowthChart
               people={people}
               mode="time"
               progress={progress}
               ageRange={effectiveAgeRange}
+              showPoints={showPoints}
               title={<><em>Au fil</em> des années</>}
               subtitle="Tout le monde sur la même frise du temps"
             />
@@ -1118,6 +1256,7 @@ export default function App() {
               mode="age"
               progress={progress}
               ageRange={effectiveAgeRange}
+              showPoints={showPoints}
               title={<><em>Au même</em> âge</>}
               subtitle="Et si vous aviez tous le même âge ?"
             />
