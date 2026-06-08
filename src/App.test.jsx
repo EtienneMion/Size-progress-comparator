@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import App from './App.jsx';
 
@@ -90,6 +90,21 @@ describe('App', () => {
       fireEvent.change(colorInput, { target: { value: '#123456' } });
       expect(colorInput).toHaveValue('#123456');
     });
+
+    it('lets the user pick a reference growth curve', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      const group = screen.getByRole('group', { name: /Courbe de référence/i });
+      const none = within(group).getByRole('button', { name: 'Aucune' });
+      const girls = within(group).getByRole('button', { name: 'Filles' });
+      // No reference selected by default.
+      expect(none).toHaveAttribute('aria-pressed', 'true');
+      fireEvent.click(girls);
+      expect(girls).toHaveAttribute('aria-pressed', 'true');
+      expect(none).toHaveAttribute('aria-pressed', 'false');
+      // The reference label appears on the "au même âge" chart.
+      expect(screen.getByText(/Réf\. filles/i)).toBeInTheDocument();
+    });
   });
 
   describe('persistence', () => {
@@ -133,6 +148,17 @@ describe('App', () => {
       expect(screen.getByLabelText('Âge minimum')).toHaveValue(7);
       // A narrowed range was restored, so the reset affordance is present.
       expect(screen.getByText(/Tout afficher/i)).toBeInTheDocument();
+    });
+
+    it('restores the reference curve preference across reloads', () => {
+      const { unmount } = render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      const group = screen.getByRole('group', { name: /Courbe de référence/i });
+      fireEvent.click(within(group).getByRole('button', { name: 'Garçons' }));
+      unmount();
+      render(<App />);
+      // The boys reference is drawn straight away, before opening the panel.
+      expect(screen.getByText(/Réf\. garçons/i)).toBeInTheDocument();
     });
   });
 
