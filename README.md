@@ -17,33 +17,33 @@ npm run build    # build de production dans dist/
 npm run preview  # prévisualise le build de production
 ```
 
-## Déploiement sur Cloudflare Pages
+## Déploiement sur Cloudflare
 
-Deux options.
+Le projet est déployé via **Workers Static Assets** : un Worker « assets-only »
+sert le contenu statique de `dist/`. La config est dans `wrangler.toml`
+(`[assets] directory = "./dist"`), avec `not_found_handling =
+"single-page-application"` pour le routing côté client.
 
-### Option A — Intégration Git (recommandée)
+### Intégration Git (configuration actuelle dans le dashboard)
 
-1. Pousser ce dépôt sur GitHub (déjà le cas si tu lis ceci).
-2. Dans le dashboard Cloudflare → **Workers & Pages** → **Create** →
-   **Pages** → **Connect to Git**, sélectionner ce dépôt.
-3. Configurer le build :
-   - **Framework preset** : `Vite`
-   - **Build command** : `npm run build`
-   - **Build output directory** : `dist`
-4. **Save and Deploy**. Chaque push sur la branche de production déclenchera un
-   nouveau déploiement, et chaque branche/PR aura sa propre URL de prévisualisation.
+Dans le dashboard Cloudflare → **Workers & Pages**, le projet est connecté à ce
+dépôt avec :
 
-### Option B — Wrangler CLI
+- **Build command** : `npm run build`
+- **Deploy command** : `npx wrangler deploy`
+- **Root directory** : `/`
+
+Chaque push sur la branche de production déclenche un nouveau déploiement.
+
+### Wrangler CLI (déploiement manuel)
 
 ```bash
 npm install
 npm run build
-npx wrangler pages deploy dist
+npx wrangler deploy
 ```
 
-La première fois, Wrangler demandera de s'authentifier et de créer (ou choisir)
-le projet Pages. Le fichier `wrangler.toml` définit déjà
-`pages_build_output_dir = "dist"`.
+La première fois, Wrangler demandera de s'authentifier.
 
 ## Structure
 
@@ -55,8 +55,7 @@ le projet Pages. Le fichier `wrangler.toml` définit déjà
 │   ├── App.jsx         # toute l'application (charts D3 + UI)
 │   └── index.css       # reset CSS global minimal
 ├── public/
-│   ├── favicon.svg
-│   └── _redirects      # routing SPA pour Cloudflare Pages
+│   └── favicon.svg
 ├── vite.config.js
-└── wrangler.toml       # config Cloudflare Pages (déploiement CLI)
+└── wrangler.toml       # config Cloudflare (Workers Static Assets)
 ```
