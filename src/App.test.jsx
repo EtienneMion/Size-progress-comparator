@@ -58,4 +58,34 @@ describe('App', () => {
       expect(minInput).toHaveValue(10);
     });
   });
+
+  describe('chart configuration', () => {
+    it('keeps the config panel collapsed until opened', () => {
+      render(<App />);
+      expect(screen.getByText(/Configurer le graphique/i)).toBeInTheDocument();
+      // Controls live inside the collapsed body.
+      expect(screen.queryByLabelText('Afficher les points')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      expect(screen.getByLabelText('Afficher les points')).toBeInTheDocument();
+    });
+
+    it('toggles the "show points" switch', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      const toggle = screen.getByLabelText('Afficher les points');
+      // Points are shown by default.
+      expect(toggle).toHaveAttribute('aria-checked', 'true');
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('exposes a colour picker per person and updates the colour', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText(/Configurer le graphique/i));
+      const colorInput = screen.getByLabelText('Couleur de Hélène');
+      expect(colorInput).toBeInTheDocument();
+      fireEvent.change(colorInput, { target: { value: '#123456' } });
+      expect(colorInput).toHaveValue('#123456');
+    });
+  });
 });
